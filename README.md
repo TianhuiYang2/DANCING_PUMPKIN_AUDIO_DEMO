@@ -91,3 +91,9 @@ ChatGPT by OpenAI was used to assist with code debugging, code restructuring and
 AI-generated suggestions were reviewed, tested and adapted by the student. The final implementation was modified through repeated browser testing and comparison between different audio-responsive versions.
 
 AI acknowledgement comments are also included in the relevant JavaScript files.
+
+## Music Credit
+
+Databend. (2026). *Dark Electronic Pulse Background*. Pixabay. Available at: https://pixabay.com/music/electronic-dark-electronic-pulse-background-546935/ (Accessed: 18 October 2026).
+
+The track is used under the Pixabay Content License.
