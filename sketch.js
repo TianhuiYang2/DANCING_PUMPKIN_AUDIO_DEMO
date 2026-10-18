@@ -35,39 +35,31 @@ function draw() {
 function drawBackgroundGlow(audio) {
   push();
 
-  translate(
-    width / 2,
-    height / 2
-  );
-
+  translate(width / 2, height / 2);
   noStroke();
 
   /*
     Loudness controls the size and transparency
-    of the glow behind the dot field.
+    of the glow behind the tunnel.
   */
   let glowSize =
-    330 +
-    audio.loudness * 230;
+    320 +
+    audio.loudness * 180;
 
   fill(
     120 + audio.mid * 80,
     20,
     100 + audio.treble * 100,
-    28 + audio.loudness * 35
+    25 + audio.loudness * 30
   );
 
-  circle(
-    0,
-    0,
-    glowSize
-  );
+  circle(0, 0, glowSize);
 
   fill(
     255,
     90,
     15,
-    18 + audio.bass * 28
+    15 + audio.bass * 24
   );
 
   circle(
@@ -82,37 +74,38 @@ function drawBackgroundGlow(audio) {
 function drawHallucinationField(audio) {
   push();
 
-  translate(
-    width / 2,
-    height / 2
-  );
+  translate(width / 2, height / 2);
 
   let time =
     millis() * 0.001;
 
   /*
-    The middle frequencies slowly rotate
-    the whole visual space.
+    Mid frequencies rotate the visual space.
   */
   let sceneRotation =
-    sin(time * 0.35) * 0.04 +
-    audio.mid * 0.12;
+    sin(time * 0.35) * 0.035 +
+    audio.mid * 0.1;
 
   rotate(sceneRotation);
 
   /*
-    A detected beat briefly moves the whole field.
+    A detected beat briefly shakes the field.
+    The reduced amount prevents excessive jumping.
   */
   let beatShake =
-    audio.beat * 13;
+    audio.beat * 7;
 
   translate(
     sin(time * 37) * beatShake,
     cos(time * 31) * beatShake
   );
 
-  let numberOfRings = 17;
-  let dotsPerRing = 38;
+  /*
+    Slightly fewer rings and dots give each
+    point more space and preserve the tunnel.
+  */
+  let numberOfRings = 16;
+  let dotsPerRing = 36;
 
   for (
     let ringIndex = 0;
@@ -125,17 +118,19 @@ function drawHallucinationField(audio) {
 
     let baseRadius =
       lerp(
-        30,
+        34,
         470,
         ringAmount
       );
 
     /*
-      Loudness makes the dot field breathe.
+      Loudness makes the whole tunnel breathe.
+      The limited scale prevents the rings
+      from collapsing into one dense shape.
     */
     let breathingScale =
-      0.96 +
-      audio.loudness * 0.16;
+      0.97 +
+      audio.loudness * 0.12;
 
     let ringRadius =
       baseRadius *
@@ -151,11 +146,10 @@ function drawHallucinationField(audio) {
         dotsPerRing;
 
       let baseAngle =
-        dotAmount *
-        TWO_PI;
+        dotAmount * TWO_PI;
 
       /*
-        Bass bends every ring into a wave.
+        Bass bends the rings into waves.
       */
       let bassWave =
         sin(
@@ -165,12 +159,11 @@ function drawHallucinationField(audio) {
         ) *
         (
           3 +
-          audio.bass * 26
+          audio.bass * 20
         );
 
       /*
-        Mid frequencies twist the rings,
-        creating spatial distortion.
+        Mid frequencies twist the rings.
       */
       let twist =
         sin(
@@ -179,12 +172,13 @@ function drawHallucinationField(audio) {
         ) *
         (
           0.025 +
-          audio.mid * 0.18
+          audio.mid * 0.14
         );
 
       /*
-        Beat energy creates a short fracture,
-        but noise keeps the movement organic.
+        Beat energy briefly fractures the rings.
+        This remains visible without scattering
+        the dots too far.
       */
       let fracture =
         (
@@ -196,15 +190,13 @@ function drawHallucinationField(audio) {
           0.5
         ) *
         audio.beat *
-        48;
+        28;
 
       let angle =
-        baseAngle +
-        twist;
+        baseAngle + twist;
 
       let distortedRadius =
-        ringRadius +
-        bassWave;
+        ringRadius + bassWave;
 
       let x =
         cos(angle) *
@@ -213,8 +205,8 @@ function drawHallucinationField(audio) {
         fracture;
 
       /*
-        The vertical compression makes the rings
-        feel like a tunnel rather than flat circles.
+        Vertical compression creates depth
+        and makes the rings resemble a tunnel.
       */
       let y =
         sin(angle) *
@@ -224,18 +216,22 @@ function drawHallucinationField(audio) {
         fracture;
 
       /*
-        Loudness enlarges the dots.
-        Outer dots remain slightly smaller.
+        Dots near the centre appear larger.
+        Outer dots remain smaller.
       */
       let perspective =
         map(
           ringAmount,
           0,
           1,
-          1.25,
+          1.2,
           0.58
         );
 
+      /*
+        A slow internal pulse continues even
+        between louder moments of the music.
+      */
       let pulse =
         (
           sin(
@@ -246,26 +242,34 @@ function drawHallucinationField(audio) {
         ) /
         2;
 
+      /*
+        Music still changes dot size, but the
+        maximum growth is reduced to avoid overlap.
+      */
       let dotSize =
         (
           4 +
-          pulse * 5 +
-          audio.loudness * 11 +
-          audio.bass * 7
+          pulse * 4 +
+          audio.loudness * 6 +
+          audio.bass * 4
         ) *
         perspective;
 
+      dotSize = constrain(
+        dotSize,
+        2.5,
+        16
+      );
+
       /*
-        Treble changes brightness and opacity.
+        Treble controls brightness and opacity.
       */
       let alpha =
         105 +
         audio.treble * 130;
 
       if (
-        (ringIndex + dotIndex) %
-        3 ===
-        0
+        (ringIndex + dotIndex) % 3 === 0
       ) {
         fill(
           255,
@@ -274,9 +278,7 @@ function drawHallucinationField(audio) {
           alpha
         );
       } else if (
-        (ringIndex + dotIndex) %
-        3 ===
-        1
+        (ringIndex + dotIndex) % 3 === 1
       ) {
         fill(
           247,
@@ -307,26 +309,21 @@ function drawHallucinationField(audio) {
 function drawCentreVoid(audio) {
   push();
 
-  translate(
-    width / 2,
-    height / 2
-  );
-
+  translate(width / 2, height / 2);
   noStroke();
 
   /*
-    The dark centre expands slightly with bass,
-    making the dot field resemble an unstable space.
+    Bass expands the centre of the tunnel.
   */
   let voidSize =
-    72 +
-    audio.bass * 42;
+    78 +
+    audio.bass * 30;
 
   fill(
     4,
     1,
     12,
-    235
+    238
   );
 
   circle(
@@ -346,7 +343,7 @@ function drawCentreVoid(audio) {
 
   strokeWeight(
     1.5 +
-    audio.loudness * 3
+    audio.loudness * 2
   );
 
   circle(
@@ -354,7 +351,7 @@ function drawCentreVoid(audio) {
     0,
     voidSize +
     15 +
-    audio.beat * 25
+    audio.beat * 16
   );
 
   pop();
