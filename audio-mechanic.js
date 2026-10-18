@@ -1,33 +1,42 @@
 /*
 AI ACKNOWLEDGEMENT:
-ChatGPT (OpenAI, 2026) assisted with generating, debugging
-and restructuring parts of this code. The student tested
-and modified the code for the final prototype.
+ChatGPT (OpenAI, 2026) assisted with generating and
+restructuring the audio-analysis code. The student tested,
+reviewed and adapted the code for the final prototype.
+
+This file analyses the music's loudness, bass, mid,
+treble and beat intensity.
 */
 
 let song;
 let amp;
 let fft;
 
-let smoothMusicPulse = 0;
-let audioBaseline = 0;
-let baselineReady = false;
+// Smoothed audio values from 0 to 1
+let audioFeatures = {
+  loudness: 0,
+  bass: 0,
+  mid: 0,
+  treble: 0,
+  beat: 0,
+  playing: false
+};
+
+let bassBaseline = 0;
+let beatCooldown = 0;
+let lastAudioFrame = -1;
 
 function preloadAudio() {
-  song = loadSound(
-    "assets/music.mp3"
-  );
+  song = loadSound("assets/music.mp3");
 }
 
 function setupAudio() {
+  // Read the overall loudness
   amp = new p5.Amplitude();
   amp.setInput(song);
 
-  fft = new p5.FFT(
-    0.82,
-    128
-  );
-
+  // Analyse different frequency ranges
+  fft = new p5.FFT(0.75, 512);
   fft.setInput(song);
 }
 
@@ -37,102 +46,182 @@ function toggleAudio() {
   if (song.isPlaying()) {
     song.pause();
   } else {
-    baselineReady = false;
-    smoothMusicPulse = 0;
-
     song.loop();
   }
 }
 
-function getMusicPulse() {
-  if (
-    !song ||
-    !song.isPlaying()
-  ) {
-    smoothMusicPulse = lerp(
-      smoothMusicPulse,
+function getAudioFeatures() {
+  /*
+    Prevent the FFT from being analysed more than once
+    during the same animation frame.
+  */
+  if (lastAudioFrame === frameCount) {
+    return audioFeatures;
+  }
+
+  lastAudioFrame = frameCount;
+
+  if (!song || !song.isPlaying()) {
+    audioFeatures.playing = false;
+
+    audioFeatures.loudness = lerp(
+      audioFeatures.loudness,
       0,
       0.08
     );
 
-    return smoothMusicPulse;
+    audioFeatures.bass = lerp(
+      audioFeatures.bass,
+      0,
+      0.08
+    );
+
+    audioFeatures.mid = lerp(
+      audioFeatures.mid,
+      0,
+      0.08
+    );
+
+    audioFeatures.treble = lerp(
+      audioFeatures.treble,
+      0,
+      0.08
+    );
+
+    audioFeatures.beat = lerp(
+      audioFeatures.beat,
+      0,
+      0.18
+    );
+
+    return audioFeatures;
   }
+
+  audioFeatures.playing = true;
 
   fft.analyze();
 
-  let amplitude =
-    amp.getLevel();
+  // Raw values
+  let rawLoudness = amp.getLevel();
 
-  let bass =
-    fft.getEnergy(
-      20,
-      180
-    ) / 255;
+  let rawBass =
+    fft.getEnergy(20, 180) / 255;
 
-  let lowMid =
-    fft.getEnergy(
-      180,
-      500
-    ) / 255;
+  let rawMid =
+    fft.getEnergy(180, 2000) / 255;
 
-  let currentEnergy =
-    amplitude * 3.5 +
-    bass * 0.55 +
-    lowMid * 0.3;
+  let rawTreble =
+    fft.getEnergy(2000, 8000) / 255;
 
-  if (!baselineReady) {
-    audioBaseline =
-      currentEnergy;
-
-    baselineReady = true;
-  }
-
-  audioBaseline = lerp(
-    audioBaseline,
-    currentEnergy,
-    0.025
+  // Convert the raw values into a useful 0–1 range
+  let loudnessTarget = map(
+    rawLoudness,
+    0.015,
+    0.22,
+    0,
+    1,
+    true
   );
 
-  let energyDifference =
-    currentEnergy -
-    audioBaseline;
+  let bassTarget = map(
+    rawBass,
+    0.08,
+    0.75,
+    0,
+    1,
+    true
+  );
 
-  let energyPulse = map(
-    energyDifference,
-    -0.045,
-    0.065,
+  let midTarget = map(
+    rawMid,
+    0.06,
+    0.65,
+    0,
+    1,
+    true
+  );
+
+  let trebleTarget = map(
+    rawTreble,
+    0.03,
+    0.5,
     0,
     1,
     true
   );
 
   /*
-    为动态较弱的音乐补充缓慢节奏。
-
-    音乐暂停后，动画也会停止。
+    Smooth the values enough to prevent flickering,
+    while keeping the response visible.
   */
-  let rhythmPulse =
-    (
-      sin(
-        song.currentTime() *
-        TWO_PI *
-        1.15
-      ) +
-      1
-    ) / 2;
-
-  let targetPulse =
-    energyPulse * 0.65 +
-    rhythmPulse * 0.35;
-
-  smoothMusicPulse = lerp(
-    smoothMusicPulse,
-    targetPulse,
-    0.1
+  audioFeatures.loudness = lerp(
+    audioFeatures.loudness,
+    loudnessTarget,
+    0.2
   );
 
+  audioFeatures.bass = lerp(
+    audioFeatures.bass,
+    bassTarget,
+    0.24
+  );
+
+  audioFeatures.mid = lerp(
+    audioFeatures.mid,
+    midTarget,
+    0.18
+  );
+
+  audioFeatures.treble = lerp(
+    audioFeatures.treble,
+    trebleTarget,
+    0.28
+  );
+
+  /*
+    Detect a beat when the bass rises clearly above
+    its recent average.
+  */
+  bassBaseline = lerp(
+    bassBaseline,
+    bassTarget,
+    0.035
+  );
+
+  let bassDifference =
+    bassTarget - bassBaseline;
+
+  if (
+    bassDifference > 0.13 &&
+    bassTarget > 0.35 &&
+    beatCooldown <= 0
+  ) {
+    audioFeatures.beat = 1;
+    beatCooldown = 8;
+  } else {
+    audioFeatures.beat *= 0.78;
+  }
+
+  if (beatCooldown > 0) {
+    beatCooldown--;
+  }
+
+  return audioFeatures;
+}
+
+/*
+  This function keeps the current sketch.js working.
+
+  Unlike the old version, the pulse now comes entirely
+  from the real music analysis.
+*/
+function getMusicPulse() {
+  let data = getAudioFeatures();
+
   return constrain(
-    smoothMusicPulse,
+    data.loudness * 0.5 +
+    data.bass * 0.3 +
+    data.beat * 0.35,
     0,
     1
   );
